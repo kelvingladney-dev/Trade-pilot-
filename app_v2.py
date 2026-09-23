@@ -1,4 +1,4 @@
-import streamlit as st
+ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
@@ -25,6 +25,7 @@ st.title("📱 TradePilot V2")
 st.caption("Mobile stock research & paper-trading dashboard")
 
 DEFAULT_WATCHLIST = ["AAPL", "MSFT", "NVDA", "TSLA", "AMZN"]
+
 
 @st.cache_data(ttl=60)
 def load_data(ticker, period):
@@ -61,7 +62,6 @@ def calculate_indicators(data, fast, slow, rsi_len, atr_len):
     ).mean()
 
     rs = gain / loss.replace(0, np.nan)
-
     x["RSI"] = 100 - (100 / (1 + rs))
 
     x["EMA12"] = x["Close"].ewm(
@@ -81,7 +81,6 @@ def calculate_indicators(data, fast, slow, rsi_len, atr_len):
         adjust=False
     ).mean()
 
-    # ATR
     previous_close = x["Close"].shift(1)
 
     true_range = pd.concat(
@@ -95,7 +94,6 @@ def calculate_indicators(data, fast, slow, rsi_len, atr_len):
 
     x["ATR"] = true_range.rolling(atr_len).mean()
 
-    # Rule-based signals
     x["BUY"] = (
         (x["Fast SMA"] > x["Slow SMA"]) &
         (x["RSI"] > 50) &
@@ -115,6 +113,8 @@ def calculate_indicators(data, fast, slow, rsi_len, atr_len):
     )
 
     return x
+
+
 def backtest(data):
     required = [
         "Fast SMA",
@@ -164,10 +164,6 @@ def backtest(data):
         equity
     )
 
-
-# -------------------------
-# Sidebar settings
-# -------------------------
 
 with st.sidebar:
     st.header("⚙️ TradePilot Settings")
@@ -244,10 +240,8 @@ with st.sidebar:
         20.0,
         5.0,
         0.5
-  )
-  # -------------------------
-# Main dashboard
-# -------------------------
+    )
+
 
 if not ticker:
     st.info("Enter a ticker in Settings.")
@@ -271,7 +265,6 @@ try:
     last = df.iloc[-1]
 
     price = float(last["Close"])
-
     signal = str(last["Signal"])
 
     rsi = (
@@ -280,21 +273,11 @@ try:
         else np.nan
     )
 
-    macd = (
-        float(last["MACD"])
-        if pd.notna(last["MACD"])
-        else np.nan
-    )
-
     atr = (
         float(last["ATR"])
         if pd.notna(last["ATR"])
         else np.nan
     )
-
-    # -------------------------
-    # Watchlist
-    # -------------------------
 
     st.subheader("⭐ Watchlist")
 
@@ -314,9 +297,11 @@ try:
                     watch_data["Close"].iloc[-1]
                 )
 
-                previous = float(
-                    watch_data["Close"].iloc[-2]
-                ) if len(watch_data) > 1 else watch_price
+                previous = (
+                    float(watch_data["Close"].iloc[-2])
+                    if len(watch_data) > 1
+                    else watch_price
+                )
 
                 change = (
                     (watch_price - previous)
@@ -335,10 +320,6 @@ try:
 
         except Exception:
             pass
-
-    # -------------------------
-    # Current stock
-    # -------------------------
 
     st.subheader(f"📊 {ticker}")
 
@@ -374,24 +355,16 @@ try:
         st.success(
             "BUY condition detected by the selected rules."
         )
-
     elif signal == "SELL":
         st.error(
             "SELL condition detected by the selected rules."
         )
-
     else:
         st.info(
             "HOLD — no complete signal condition detected."
         )
 
-    # -------------------------
-    # Price chart
-    # -------------------------
-
-    st.subheader(
-        f"📈 {ticker} Price"
-    )
+    st.subheader(f"📈 {ticker} Price")
 
     st.line_chart(
         df[
@@ -411,9 +384,7 @@ try:
             "Backtest",
             "Data"
         ]
-    )    # -------------------------
-    # Indicators
-    # -------------------------
+    )
 
     with tab1:
         st.subheader("MACD")
@@ -450,10 +421,6 @@ try:
             hide_index=True
         )
 
-    # -------------------------
-    # Risk calculator
-    # -------------------------
-
     with tab2:
         st.subheader("💰 Paper Trade Risk")
 
@@ -461,8 +428,6 @@ try:
             account * risk / 100
         )
 
-        # Use ATR when available,
-        # otherwise use the selected percentage.
         if np.isfinite(atr) and atr > 0:
             stop_distance = max(
                 atr * 2,
@@ -479,17 +444,9 @@ try:
             else 0
         )
 
-        position_value = (
-            shares * price
-        )
-
-        stop_price = (
-            price - stop_distance
-        )
-
-        target_price = (
-            price + stop_distance * 2
-        )
+        position_value = shares * price
+        stop_price = price - stop_distance
+        target_price = price + stop_distance * 2
 
         a, b = st.columns(2)
 
@@ -528,7 +485,51 @@ try:
             "2R target",
             f"${target_price:,.2f}"
         )
+
         st.caption(
             "Paper-trading calculation only. "
             "TradePilot does not place real-money orders."
-                )
+        )
+
+    with tab3:
+        st.subheader("📊 Rule-Based Backtest")
+
+        if len(df.dropna()) < 2:
+            st.info("Not enough data to run the backtest.")
+        else:
+            total_return, max_drawdown, equity = backtest(df)
+
+            m1, m2 = st.columns(2)
+
+            m1.metric(
+                "Strategy return",
+                f"{total_return * 100:.2f}%"
+            )
+
+            m2.metric(
+                "Max drawdown",
+                f"{max_drawdown * 100:.2f}%"
+            )
+
+            st.line_chart(
+                equity.rename("Equity"),
+                height=250
+            )
+
+            st.caption(
+                "Historical rule-based backtest only; "
+                "not a prediction of future results."
+            )
+
+    with tab4:
+        st.subheader("📋 Market Data")
+
+        st.dataframe(
+            df.tail(30).round(2),
+            use_container_width=True,
+            hide_index=True
+        )
+
+except Exception as e:
+    st.error("TradePilot could not load the dashboard data.")
+    st.exception(e)
