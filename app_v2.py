@@ -532,3 +532,4 @@ try:
         st.caption(
             "Paper-trading calculation only. "
             "TradePilot does not place real-money orders."
+        )
