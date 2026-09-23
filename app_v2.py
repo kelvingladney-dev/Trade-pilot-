@@ -528,7 +528,7 @@ try:
             "2R target",
             f"${target_price:,.2f}"
         )
-                st.caption(
+        st.caption(
             "Paper-trading calculation only. "
             "TradePilot does not place real-money orders."
                 )
